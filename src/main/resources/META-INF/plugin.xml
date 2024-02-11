@@ -13,18 +13,22 @@
   <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
        Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
        Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
-  <description><![CDATA[
-    Enter short description for your plugin here.<br>
-    <em>most HTML tags may be used</em>
-  ]]></description>
+  <description>Simple plugin for searching and indexing dependencies in use</description>
 
   <!-- Product and plugin compatibility requirements.
        Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
   <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.java</depends>
 
   <!-- Extension points defined by the plugin.
        Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
   <extensions defaultExtensionNs="com.intellij">
-
+    <toolWindow
+            factoryClass="com.josephggd.importindex.FileToolWindowFactory"
+            id="Import Index"
+            secondary="true"
+            icon="AllIcons.Toolwindows.ToolWindowCommander"
+            anchor="bottom"
+    />
   </extensions>
 </idea-plugin>
