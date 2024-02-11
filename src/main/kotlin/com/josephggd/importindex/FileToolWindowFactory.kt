@@ -1,16 +1,14 @@
 package com.josephggd.importindex
 
-import com.intellij.ide.highlighter.JavaFileType
+import com.intellij.ide.plugins.PluginManager
 import com.intellij.lang.Language
-import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.editor.ex.EditorEx
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.psi.*
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.ui.LanguageTextField
 import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -18,148 +16,99 @@ import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
 import javax.swing.*
 import javax.swing.event.ListSelectionEvent
-import javax.swing.text.Document
 
 
 internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val toolWindowContent = FileToolWindowContent(toolWindow, project)
+        val toolWindowContent = FileToolWindowContent(project)
         val content = ContentFactory.getInstance().createContent(toolWindowContent.mainPanel, "", false)
         toolWindow.contentManager.addContent(content)
     }
-    private class FileToolWindowContent(toolWindow: ToolWindow, project:Project) : FileLogic(project) {
+    private class FileToolWindowContent(project:Project) : FileLogic(project) {
         val mainPanel = JPanel()
-        var importStatements = emptyList<Import>()
+        var psiFiles = emptyList<PsiJavaFile>()
         var imports = emptyList<String>()
-        var selectedImport:String? = null
+        var selectedImport=""
         var importingFiles = emptyList<String>()
-        var selectedFile:String?="no file selected"
+        var selectedFileName:String?="no file selected"
+        var logger = com.intellij.openapi.diagnostic.Logger.getFactory().getLoggerInstance("LOG")
         init {
             refreshImportStatements()
             mainPanel.layout = BorderLayout(0,0)
             mainPanel.border = BorderFactory.createEmptyBorder(20,20,20,20)
-            mainPanel.add(createControlPanel(toolWindow), BorderLayout.NORTH)
+            mainPanel.add(createControlPanel(), BorderLayout.NORTH)
 
-            val importSearch = createSearch(
-                "loading",
-                imports
-            ) {
-                importSearchCallback(it)
-            }
+            val importSearch = createImportSearch(
+                "loading"
+            )
             mainPanel.add(importSearch, BorderLayout.WEST)
 
-            val fileSearch = createSearch(
-                "select an import",
-                importingFiles
-            ) {
-                fileSearchCallback(it)
-            }
+            val fileSearch = createFileSearch(
+                "select an import"
+            )
             mainPanel.add(fileSearch, BorderLayout.CENTER)
 
-            val fileView = JLabel(selectedFile)
+            val fileView = JLabel(selectedFileName)
             mainPanel.add(fileView, BorderLayout.EAST)
         }
-        fun importSearchCallback(inputEvent: ListSelectionEvent) {
-            println("inputEvent.firstIndex:${inputEvent.firstIndex}")
-            println("inputEvent.lastIndex:${inputEvent.lastIndex}")
-            val selectedImport = importStatements.sortedBy { it.imported }[inputEvent.lastIndex].imported
-            println("selectedImport:"+selectedImport)
-            println("!!:"+importStatements[inputEvent.lastIndex])
-            mainPanel.remove(2)
-
-            val newFiles = importStatements
-                    .asSequence()
-                    .filter { it.imported==selectedImport }
-                    .map { it.importing }
-                    .toSet()
-                    .toList()
-                    .sorted()
-            println("newFiles:"+newFiles)
-
-            val fileSearch = createSearch(
-                "select an import",
-                newFiles
-            ) {
-                fileSearchCallback(it)
+        fun gatherUniqueImports():List<String>{
+            val set = mutableSetOf<String>()
+            for (psiFile in psiFiles) {
+                val list:Collection<String> = psiFile
+                    .importList
+                    ?.importStatements
+                    ?.map { it.qualifiedName?:"" }
+                    ?: emptyList()
+                set.addAll(list)
             }
-            mainPanel.add(fileSearch, BorderLayout.CENTER)
-            mainPanel.repaint()
+            return set.toList().sorted()
         }
-
-//        fun sdsd(){
-//            val sdsd = PsiManager.getInstance(project).findViewProvider()
-//            val psiFile: PsiFile = anActionEvent.getData(CommonDataKeys.PSI_FILE)
-//            val element = psiFile.findElementAt(offset)
-//            val containingMethod = PsiTreeUtil.getParentOfType(
-//                element,
-//                PsiMethod::class.java
-//            )
-//            val containingClass = containingMethod!!.containingClass!!
-//        }
-
-//        fun navToFile(){
-//            val psiFile = PsiDocumentManager.getInstance(project)
-//                .getPsiFile(editor.getDocument())
-//            val element: PsiElement =
-//                psiFile.findElementAt(editor.getCaretModel().getOffset())
-//            val code =
-//                JavaCodeFragmentFactory.getInstance(project)
-//                    .createExpressionCodeFragment("", element, null, true)
-//
-//            val document: Document? =
-//                PsiDocumentManager.getInstance(project).getDocument(code)
-//        }
-        fun fileSearchCallback(inputEvent: ListSelectionEvent) {
-            val selectedFile = importStatements.sortedBy { it.importing }[inputEvent.lastIndex].importing
-            try {
-                mainPanel.remove(3)
-            } catch (e:Exception) {
-
-            }
-
-            val lang = Language.findLanguageByID("Java")
-            val ltf = JLabel( selectedFile )
-            mainPanel.add(ltf, BorderLayout.EAST)
-            mainPanel.repaint()
+        fun gatherFilesWithImport(query:String):List<String>{
+            val filesThatImportThisDep = psiFiles
+                .filter { psiFile -> (psiFile.importList?.importStatements?.map { statement->statement.qualifiedName }?: emptyList()).contains(query) }
+            return filesThatImportThisDep.map { it.name }.toList().sorted()
         }
         fun refreshImportStatements(){
-            importStatements = getProjectLevelImports()
-            imports = importStatements
-                .map { it.imported }
-                .toSet()
-                .toList()
-                .sorted()
+            psiFiles = getProjectLevelImports()
+            imports = gatherUniqueImports()
         }
-        fun selectImportToRefreshFiles(anImport:String){
-            importingFiles = importStatements
-                .asSequence()
-                .filter { it.imported==anImport }
-                .map { it.importing }
-                .toSet()
-                .toList()
-                .sorted()
-            println("SELECT AN IMPORT")
-            println("importingFiles:$importingFiles")
-        }
-        fun selectFileToRefreshFile(aFile:String){
-            selectedFile = importStatements
-                .map { it.importing }
-                .find { it==aFile }
-            println("SELECT A FILE")
-            println("importingFiles:$selectedFile")
-        }
-        fun createSearch(loading:String, list:List<String>, listener:(lse:ListSelectionEvent)->Unit) : JBScrollPane {
-            val jbl = JBList(list)
+        fun createImportSearch(loading:String) : JBScrollPane {
+            val jbl = JBList(imports)
             jbl.setEmptyText(loading)
             jbl.selectionMode=ListSelectionModel.SINGLE_SELECTION
             jbl.addListSelectionListener {
-                listener(it)
+                ApplicationManager.getApplication().invokeLater {
+                    selectedImport = imports[it.lastIndex]
+                    mainPanel.remove(2)
+
+                    importingFiles = gatherFilesWithImport(selectedImport)
+
+                    val fileSearch = createFileSearch(
+                        "select an import",
+                    )
+                    mainPanel.add(fileSearch, BorderLayout.CENTER)
+                    mainPanel.repaint()
+                }
             }
             val lss = ListSpeedSearch(jbl)
             val jbsp = JBScrollPane(lss.component)
             return jbsp
         }
-        fun createControlPanel(toolWindow: ToolWindow):JPanel {
+        fun createFileSearch(loading:String) : JBScrollPane {
+            val jbl = JBList(importingFiles)
+            jbl.setEmptyText(loading)
+            jbl.selectionMode=ListSelectionModel.SINGLE_SELECTION
+            jbl.addListSelectionListener {
+                ApplicationManager.getApplication().invokeLater {
+                    val newF = jbl.selectedValue
+                    psiFiles.find { it.name==newF }?.navigate(true)
+                }
+            }
+            val lss = ListSpeedSearch(jbl)
+            val jbsp = JBScrollPane(lss.component)
+            return jbsp
+        }
+        fun createControlPanel():JPanel {
             val jp = JPanel()
 
             val refreshFilesButton = JButton("Refresh Imports")
@@ -172,23 +121,3 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         }
     }
 }
-
-
-//class CustomLanguageTextField(document:Document, project: Project) : LanguageTextField(document, project,
-//    JavaFileType.INSTANCE.toString()
-//) {
-//
-//    override fun createEditor(): EditorEx {
-//        val editor = super.createEditor()
-//        editor.setVerticalScrollbarVisible(true)
-//        editor.setHorizontalScrollbarVisible(true)
-//
-//        val settings = editor.settings
-//        settings.isLineNumbersShown = true
-//        settings.isAutoCodeFoldingEnabled = true
-//        settings.isFoldingOutlineShown = true
-//        settings.isAllowSingleLogicalLineFolding = true
-//        settings.isRightMarginShown=true
-//        return editor
-//    }
-//}
