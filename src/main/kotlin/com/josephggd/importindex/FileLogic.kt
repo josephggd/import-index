@@ -2,13 +2,10 @@ package com.josephggd.importindex
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.JavaPsiFacade
-import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
-import javax.swing.tree.DefaultMutableTreeNode
 
 
 internal open class FileLogic(val project: Project) {

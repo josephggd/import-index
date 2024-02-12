@@ -1,21 +1,20 @@
 package com.josephggd.importindex
 
-import com.intellij.ide.plugins.PluginManager
-import com.intellij.lang.Language
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.psi.*
+import com.intellij.psi.PsiJavaFile
 import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
 import javax.swing.*
-import javax.swing.event.ListSelectionEvent
 
 
 internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
@@ -64,23 +63,41 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             return set.toList().sorted()
         }
         fun gatherFilesWithImport(query:String):List<String>{
-            val filesThatImportThisDep = psiFiles
-                .filter { psiFile -> (psiFile.importList?.importStatements?.map { statement->statement.qualifiedName }?: emptyList()).contains(query) }
-            return filesThatImportThisDep.map { it.name }.toList().sorted()
+            if (query.length>4){
+                val a1 = psiFiles
+                    .filter { psiFile -> (psiFile.importList?.importStatements?.map {stmt->stmt.qualifiedName }
+                        ?: emptyList())
+                        .contains(query)
+                    }
+                return a1.map { it.name }.toList().sorted()
+            }
+            return emptyList()
         }
         fun refreshImportStatements(){
-            psiFiles = getProjectLevelImports()
-            imports = gatherUniqueImports()
+            ApplicationManager.getApplication().invokeAndWait {
+                psiFiles = getProjectLevelImports()
+                imports = gatherUniqueImports()
+
+                selectedImport=""
+                importingFiles= emptyList()
+                selectedFileName=""
+            }
+        }
+        fun remove(int:Int){
+            try {
+                mainPanel.remove(int)
+            } catch (e:Exception) {
+                logger.warn("REMOVE")
+            }
         }
         fun createImportSearch(loading:String) : JBScrollPane {
             val jbl = JBList(imports)
             jbl.setEmptyText(loading)
             jbl.selectionMode=ListSelectionModel.SINGLE_SELECTION
             jbl.addListSelectionListener {
-                ApplicationManager.getApplication().invokeLater {
-                    selectedImport = imports[it.lastIndex]
-                    mainPanel.remove(2)
-
+                selectedImport = jbl.selectedValue
+                remove(2)
+                ApplicationManager.getApplication().invokeAndWait {
                     importingFiles = gatherFilesWithImport(selectedImport)
 
                     val fileSearch = createFileSearch(
@@ -90,6 +107,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                     mainPanel.repaint()
                 }
             }
+
             val lss = ListSpeedSearch(jbl)
             val jbsp = JBScrollPane(lss.component)
             return jbsp
@@ -99,7 +117,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             jbl.setEmptyText(loading)
             jbl.selectionMode=ListSelectionModel.SINGLE_SELECTION
             jbl.addListSelectionListener {
-                ApplicationManager.getApplication().invokeLater {
+                ApplicationManager.getApplication().invokeAndWait {
                     val newF = jbl.selectedValue
                     psiFiles.find { it.name==newF }?.navigate(true)
                 }
@@ -114,8 +132,17 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             val refreshFilesButton = JButton("Refresh Imports")
             refreshFilesButton.addActionListener {
                 refreshImportStatements()
+                refreshFilesButton.isEnabled=false
             }
             jp.add(refreshFilesButton, BorderLayout.PAGE_END)
+
+            project.messageBus.connect().subscribe<BulkFileListener>(
+                VirtualFileManager.VFS_CHANGES,
+                object : BulkFileListener {
+                    override fun after(events: MutableList<out VFileEvent>) {
+                        refreshFilesButton.isEnabled=true
+                    }
+                })
 
             return jp
         }
