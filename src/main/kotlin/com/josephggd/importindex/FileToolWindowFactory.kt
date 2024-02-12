@@ -3,6 +3,7 @@ package com.josephggd.importindex
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
@@ -10,8 +11,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.psi.PsiJavaFile
 import com.intellij.ui.ListSpeedSearch
-import com.intellij.ui.components.JBList
-import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.*
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
 import javax.swing.*
@@ -34,7 +34,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         var logger = com.intellij.openapi.diagnostic.Logger.getFactory().getLoggerInstance("Import Index")
         init {
             refreshImportStatements()
-            mainPanel.layout = BorderLayout(0,0)
+            mainPanel.layout = BorderLayout(20,20)
             mainPanel.border = BorderFactory.createEmptyBorder(20,20,20,20)
             project.messageBus.connect().subscribe<BulkFileListener>(
                 VirtualFileManager.VFS_CHANGES,
@@ -50,7 +50,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             mainPanel.add(fileView, BorderLayout.EAST)
         }
         fun getSelectedIndex(lse:ListSelectionEvent):Int{
-            val list = lse.getSource() as JList<*>
+            val list = lse.source as JList<*>
             val selected = list.selectedIndex
             return selected
         }
@@ -60,10 +60,9 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 val index = getSelectedIndex(lse)
                 if (!lse.valueIsAdjusting) {
                     val impName = importJL.model.getElementAt(index)
-                    fileJL.selectedIndex=-1
                     fileJL.setListData(
                         importToFileMap
-                            .getOrDefault(impName, emptyList<PsiJavaFile>())
+                            .getOrDefault(impName, emptyList())
                             .map { PsiFileExtender(it) }
                             .toTypedArray()
                     )
@@ -82,33 +81,37 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         fun refreshImportStatements(){
             ApplicationManager.getApplication().invokeAndWait {
                 importToFileMap = getImportsAsMap()
-                importJL.selectedIndex=-1
+                importJL.setListData(importToFileMap.keys.sorted().toTypedArray())
                 importingFiles= emptyList()
                 selectedFileName=""
             }
         }
-        fun createImportSearch() : JBScrollPane {
-            importJL.setEmptyText("loading")
+        fun createImportSearch() : DialogPanel {
+            importJL.setEmptyText("Loading")
             importJL.setListData(importToFileMap.keys.sorted().toTypedArray())
             importJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
             importJL.addListSelectionListener {
                 importCallback(it)
             }
             val lss = ListSpeedSearch(importJL)
+            val dp = DialogPanel("Project Imports:")
             val jbsp = JBScrollPane(lss.component)
-            return jbsp
+            dp.add(jbsp)
+            return dp
         }
-        fun createFileSearch() : JBScrollPane {
+        fun createFileSearch() : DialogPanel {
             val fl = importingFiles.map { PsiFileExtender(it) }.toTypedArray()
-            fileJL.setEmptyText("select an import")
+            fileJL.setEmptyText("Select an Import")
             fileJL.setListData(fl)
             fileJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
             fileJL.addListSelectionListener {
                 fileCallback(it)
             }
             val lss = ListSpeedSearch(fileJL)
+            val dp = DialogPanel("Files Containing Import:")
             val jbsp = JBScrollPane(lss.component)
-            return jbsp
+            dp.add(jbsp)
+            return dp
         }
     }
 }
