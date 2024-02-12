@@ -39,7 +39,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         val stepOneCheckBox = JBCheckBox("Package only?")
         val stepOneSearchSelect = JBList(emptyList<String>())
         val stepTwoSearchSelect = JBList(emptyList<PsiFileExtender>())
-        val stepTwoFileLink = JButton("", AllIcons.Ide.External_link_arrow)
+        val stepTwoFileLink = HyperlinkLabel("FILE")
         var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
         var importingFiles = emptyList<PsiJavaFile>()
         var selectedFileName:String?="no file selected"
@@ -79,10 +79,11 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         }
 
         fun importCallback(lse:ListSelectionEvent) {
-            ApplicationManager.getApplication().invokeAndWait {
+            try {
                 val index = getSelectedIndex(lse)
                 if (!lse.valueIsAdjusting) {
                     stepTwoFileLink.isEnabled=false
+                    stepTwoFileLink.setHyperlinkText("...")
                     val impName = stepOneSearchSelect.model.getElementAt(index)
                     if (!stepOneCheckBox.isSelected) {
                         stepTwoSearchSelect.setListData(
@@ -104,26 +105,34 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                         stepTwoSearchSelect.setListData(emptyList.toSet().toTypedArray())
                     }
                 }
+            } catch (e:Exception) {
+                logger.warn("IMPORT CALLBACK FAILED")
             }
         }
         fun fileCallback(lse:ListSelectionEvent){
-            ApplicationManager.getApplication().invokeLater {
-                val index = getSelectedIndex(lse)
+            try {
                 if (!lse.valueIsAdjusting) {
+                    val index = getSelectedIndex(lse)
                     val newF:PsiFileExtender = stepTwoSearchSelect.model.getElementAt(index)
                     stepTwoFileLink.isEnabled=true
-                    stepTwoFileLink.addActionListener {
+                    stepTwoFileLink.setHyperlinkText(newF.psiFile.name)
+                    stepTwoFileLink.addHyperlinkListener {
                         newF.navigate()
+                        newF.psiFile.containingDirectory.navigate(true)
                     }
                 }
+            } catch (e:Exception) {
+                logger.warn("FILE CALLBACK FAILED")
             }
         }
         fun refreshImportStatements(){
-            ApplicationManager.getApplication().invokeAndWait {
+            try {
                 importToFileMap = getImportsAsMap()
                 stepOneSearchSelect.setListData(importToFileMap.keys.sorted().toTypedArray())
                 importingFiles= emptyList()
                 selectedFileName=""
+            } catch (e:Exception) {
+                logger.warn("REFRESH FAILED")
             }
         }
         fun createImportSearch() : DialogPanel {
@@ -132,7 +141,11 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             stepOneSearchSelect.setListData(importToFileMap.keys.sorted().toTypedArray())
             stepOneSearchSelect.selectionMode=ListSelectionModel.SINGLE_SELECTION
             stepOneSearchSelect.addListSelectionListener {
-                importCallback(it)
+                try {
+                    importCallback(it)
+                } catch (e:Exception) {
+                    logger.warn("IMPORT CALLBACK FAILED")
+                }
             }
             val lss = ListSpeedSearch(stepOneSearchSelect)
             val jbsp = JBScrollPane(lss.component)
@@ -162,11 +175,16 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             stepTwoSearchSelect.setListData(fl)
             stepTwoSearchSelect.selectionMode=ListSelectionModel.SINGLE_SELECTION
             stepTwoSearchSelect.addListSelectionListener {
-                fileCallback(it)
+                try {
+                    fileCallback(it)
+                } catch (e:Exception) {
+                    logger.warn("IMPORT CALLBACK FAILED")
+                }
             }
             val lss = ListSpeedSearch(stepTwoSearchSelect)
             val dp = DialogPanel("Files Containing Import:")
             stepTwoFileLink.isEnabled=false
+            stepTwoFileLink.setHyperlinkText("...")
             dp.add(stepTwoFileLink, BorderLayout.NORTH)
             val jbsp = JBScrollPane(lss.component)
             dp.add(jbsp)
