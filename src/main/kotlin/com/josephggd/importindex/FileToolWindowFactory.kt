@@ -1,6 +1,8 @@
 package com.josephggd.importindex
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
@@ -10,11 +12,19 @@ import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.psi.PsiJavaFile
+import com.intellij.ui.AnimatedIcon
+import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.components.*
+import com.intellij.ui.components.labels.LinkLabel
 import com.intellij.ui.content.ContentFactory
+import com.intellij.util.ui.JBEmptyBorder
+import com.intellij.util.ui.JBImageIcon
+import com.intellij.util.ui.UIUtil
+import com.jetbrains.rd.swing.mouseClicked
 import java.awt.BorderLayout
 import javax.swing.*
+import javax.swing.Action.LARGE_ICON_KEY
 import javax.swing.event.ListSelectionEvent
 
 
@@ -26,13 +36,14 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
     }
     private class FileToolWindowContent(project:Project) : FileLogic(project) {
         val mainPanel = JPanel()
-        val tf = JBCheckBox("Package only?")
-        val importJL = JBList(emptyList<String>())
-        val fileJL = JBList(emptyList<PsiFileExtender>())
+        val stepOneCheckBox = JBCheckBox("Package only?")
+        val stepOneSearchSelect = JBList(emptyList<String>())
+        val stepTwoSearchSelect = JBList(emptyList<PsiFileExtender>())
+        val stepTwoFileLink = JButton("", AllIcons.Ide.External_link_arrow)
         var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
         var importingFiles = emptyList<PsiJavaFile>()
         var selectedFileName:String?="no file selected"
-        var logger = com.intellij.openapi.diagnostic.Logger.getFactory().getLoggerInstance("Import Index")
+        var logger = Logger.getFactory().getLoggerInstance("Import Index")
         init {
             refreshImportStatements()
             mainPanel.layout = BorderLayout(20,20)
@@ -71,9 +82,10 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             ApplicationManager.getApplication().invokeAndWait {
                 val index = getSelectedIndex(lse)
                 if (!lse.valueIsAdjusting) {
-                    val impName = importJL.model.getElementAt(index)
-                    if (!tf.isSelected) {
-                        fileJL.setListData(
+                    stepTwoFileLink.isEnabled=false
+                    val impName = stepOneSearchSelect.model.getElementAt(index)
+                    if (!stepOneCheckBox.isSelected) {
+                        stepTwoSearchSelect.setListData(
                             importToFileMap
                                 .getOrDefault(impName, emptyList())
                                 .map { PsiFileExtender(it) }
@@ -89,7 +101,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                                         .map { PsiFileExtender(it) })
                             }
                         }
-                        fileJL.setListData(emptyList.toSet().toTypedArray())
+                        stepTwoSearchSelect.setListData(emptyList.toSet().toTypedArray())
                     }
                 }
             }
@@ -98,37 +110,41 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             ApplicationManager.getApplication().invokeLater {
                 val index = getSelectedIndex(lse)
                 if (!lse.valueIsAdjusting) {
-                    val newF:PsiFileExtender = fileJL.model.getElementAt(index)
-                    newF.navigate()
+                    val newF:PsiFileExtender = stepTwoSearchSelect.model.getElementAt(index)
+                    stepTwoFileLink.isEnabled=true
+                    stepTwoFileLink.addActionListener {
+                        newF.navigate()
+                    }
                 }
             }
         }
         fun refreshImportStatements(){
             ApplicationManager.getApplication().invokeAndWait {
                 importToFileMap = getImportsAsMap()
-                importJL.setListData(importToFileMap.keys.sorted().toTypedArray())
+                stepOneSearchSelect.setListData(importToFileMap.keys.sorted().toTypedArray())
                 importingFiles= emptyList()
                 selectedFileName=""
             }
         }
         fun createImportSearch() : DialogPanel {
             val dp = DialogPanel("Project Imports:")
-            importJL.setEmptyText("Loading")
-            importJL.setListData(importToFileMap.keys.sorted().toTypedArray())
-            importJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
-            importJL.addListSelectionListener {
+            stepOneSearchSelect.setEmptyText("Loading")
+            stepOneSearchSelect.setListData(importToFileMap.keys.sorted().toTypedArray())
+            stepOneSearchSelect.selectionMode=ListSelectionModel.SINGLE_SELECTION
+            stepOneSearchSelect.addListSelectionListener {
                 importCallback(it)
             }
-            val lss = ListSpeedSearch(importJL)
+            val lss = ListSpeedSearch(stepOneSearchSelect)
             val jbsp = JBScrollPane(lss.component)
-            tf.addChangeListener {
-                if (!tf.isSelected) {
-                    importJL.setListData(importToFileMap
+            stepOneCheckBox.border=BorderFactory.createEmptyBorder(11,0,0,0)
+            stepOneCheckBox.addChangeListener {
+                if (!stepOneCheckBox.isSelected) {
+                    stepOneSearchSelect.setListData(importToFileMap
                         .keys
                         .sorted()
                         .toTypedArray())
                 } else {
-                    importJL.setListData(importToFileMap
+                    stepOneSearchSelect.setListData(importToFileMap
                         .keys
                         .map { simplifyToPkg(it) }
                         .toSet()
@@ -136,20 +152,22 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                         .toTypedArray())
                 }
             }
-            dp.add(tf, BorderLayout.NORTH)
+            dp.add(stepOneCheckBox, BorderLayout.NORTH)
             dp.add(jbsp)
             return dp
         }
         fun createFileSearch() : DialogPanel {
             val fl = importingFiles.map { PsiFileExtender(it) }.toTypedArray()
-            fileJL.setEmptyText("Select an Import")
-            fileJL.setListData(fl)
-            fileJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
-            fileJL.addListSelectionListener {
+            stepTwoSearchSelect.setEmptyText("Select an Import")
+            stepTwoSearchSelect.setListData(fl)
+            stepTwoSearchSelect.selectionMode=ListSelectionModel.SINGLE_SELECTION
+            stepTwoSearchSelect.addListSelectionListener {
                 fileCallback(it)
             }
-            val lss = ListSpeedSearch(fileJL)
+            val lss = ListSpeedSearch(stepTwoSearchSelect)
             val dp = DialogPanel("Files Containing Import:")
+            stepTwoFileLink.isEnabled=false
+            dp.add(stepTwoFileLink, BorderLayout.NORTH)
             val jbsp = JBScrollPane(lss.component)
             dp.add(jbsp)
             return dp
