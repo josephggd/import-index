@@ -36,7 +36,14 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             refreshImportStatements()
             mainPanel.layout = BorderLayout(0,0)
             mainPanel.border = BorderFactory.createEmptyBorder(20,20,20,20)
-            mainPanel.add(createControlPanel(), BorderLayout.NORTH)
+            project.messageBus.connect().subscribe<BulkFileListener>(
+                VirtualFileManager.VFS_CHANGES,
+                object : BulkFileListener {
+                    override fun after(events: MutableList<out VFileEvent>) {
+                        logger.warn("REFRESH???")
+                        refreshImportStatements()
+                    }
+                })
             mainPanel.add(createImportSearch(), BorderLayout.WEST)
             mainPanel.add(createFileSearch(), BorderLayout.CENTER)
             val fileView = JLabel(selectedFileName)
@@ -102,17 +109,6 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             val lss = ListSpeedSearch(fileJL)
             val jbsp = JBScrollPane(lss.component)
             return jbsp
-        }
-        fun createControlPanel():JPanel {
-            val jp = JPanel()
-            val refreshFilesButton = JButton("Refresh Imports")
-            refreshFilesButton.isEnabled=false
-            refreshFilesButton.addActionListener {
-                refreshImportStatements()
-                refreshFilesButton.isEnabled=false
-            }
-            jp.add(refreshFilesButton, BorderLayout.PAGE_END)
-            return jp
         }
     }
 }
