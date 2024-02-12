@@ -26,6 +26,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
     }
     private class FileToolWindowContent(project:Project) : FileLogic(project) {
         val mainPanel = JPanel()
+        val tf = JBCheckBox("Package only?")
         val importJL = JBList(emptyList<String>())
         val fileJL = JBList(emptyList<PsiFileExtender>())
         var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
@@ -40,7 +41,6 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 VirtualFileManager.VFS_CHANGES,
                 object : BulkFileListener {
                     override fun after(events: MutableList<out VFileEvent>) {
-                        logger.warn("REFRESH???")
                         refreshImportStatements()
                     }
                 })
@@ -54,18 +54,43 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             val selected = list.selectedIndex
             return selected
         }
+        fun simplifyToPkg(str:String):String{
+            val empty = mutableListOf<String>()
+            val list = str.split(".")
+            for (i in 0..1) {
+                try {
+                    empty.add(list[i])
+                } catch (e:Exception) {
+                    logger.warn("BAD PKG NAME")
+                }
+            }
+            return empty.joinToString (".")
+        }
 
         fun importCallback(lse:ListSelectionEvent) {
             ApplicationManager.getApplication().invokeAndWait {
                 val index = getSelectedIndex(lse)
                 if (!lse.valueIsAdjusting) {
                     val impName = importJL.model.getElementAt(index)
-                    fileJL.setListData(
-                        importToFileMap
-                            .getOrDefault(impName, emptyList())
-                            .map { PsiFileExtender(it) }
-                            .toTypedArray()
-                    )
+                    if (!tf.isSelected) {
+                        fileJL.setListData(
+                            importToFileMap
+                                .getOrDefault(impName, emptyList())
+                                .map { PsiFileExtender(it) }
+                                .toTypedArray()
+                        )
+                    } else {
+                        val emptyList = mutableListOf<PsiFileExtender>()
+                        for (eachImp in importToFileMap.keys) {
+                            if (eachImp.contains(impName)) {
+                                emptyList.addAll(
+                                    importToFileMap
+                                        .getOrDefault(eachImp, emptyList())
+                                        .map { PsiFileExtender(it) })
+                            }
+                        }
+                        fileJL.setListData(emptyList.toSet().toTypedArray())
+                    }
                 }
             }
         }
@@ -87,6 +112,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
             }
         }
         fun createImportSearch() : DialogPanel {
+            val dp = DialogPanel("Project Imports:")
             importJL.setEmptyText("Loading")
             importJL.setListData(importToFileMap.keys.sorted().toTypedArray())
             importJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
@@ -94,8 +120,23 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 importCallback(it)
             }
             val lss = ListSpeedSearch(importJL)
-            val dp = DialogPanel("Project Imports:")
             val jbsp = JBScrollPane(lss.component)
+            tf.addChangeListener {
+                if (!tf.isSelected) {
+                    importJL.setListData(importToFileMap
+                        .keys
+                        .sorted()
+                        .toTypedArray())
+                } else {
+                    importJL.setListData(importToFileMap
+                        .keys
+                        .map { simplifyToPkg(it) }
+                        .toSet()
+                        .sorted()
+                        .toTypedArray())
+                }
+            }
+            dp.add(tf, BorderLayout.NORTH)
             dp.add(jbsp)
             return dp
         }
