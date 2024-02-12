@@ -15,6 +15,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
 import javax.swing.*
+import javax.swing.event.ListSelectionEvent
 
 
 internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
@@ -25,125 +26,92 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
     }
     private class FileToolWindowContent(project:Project) : FileLogic(project) {
         val mainPanel = JPanel()
-        var psiFiles = emptyList<PsiJavaFile>()
-        var imports = emptyList<String>()
-        var selectedImport=""
-        var importingFiles = emptyList<String>()
+        val importJL = JBList(emptyList<String>())
+        val fileJL = JBList(emptyList<PsiFileExtender>())
+        var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
+        var importingFiles = emptyList<PsiJavaFile>()
         var selectedFileName:String?="no file selected"
-        var logger = com.intellij.openapi.diagnostic.Logger.getFactory().getLoggerInstance("LOG")
+        var logger = com.intellij.openapi.diagnostic.Logger.getFactory().getLoggerInstance("Import Index")
         init {
             refreshImportStatements()
             mainPanel.layout = BorderLayout(0,0)
             mainPanel.border = BorderFactory.createEmptyBorder(20,20,20,20)
             mainPanel.add(createControlPanel(), BorderLayout.NORTH)
-
-            val importSearch = createImportSearch(
-                "loading"
-            )
-            mainPanel.add(importSearch, BorderLayout.WEST)
-
-            val fileSearch = createFileSearch(
-                "select an import"
-            )
-            mainPanel.add(fileSearch, BorderLayout.CENTER)
-
+            mainPanel.add(createImportSearch(), BorderLayout.WEST)
+            mainPanel.add(createFileSearch(), BorderLayout.CENTER)
             val fileView = JLabel(selectedFileName)
             mainPanel.add(fileView, BorderLayout.EAST)
         }
-        fun gatherUniqueImports():List<String>{
-            val set = mutableSetOf<String>()
-            for (psiFile in psiFiles) {
-                val list:Collection<String> = psiFile
-                    .importList
-                    ?.importStatements
-                    ?.map { it.qualifiedName?:"" }
-                    ?: emptyList()
-                set.addAll(list)
-            }
-            return set.toList().sorted()
+        fun getSelectedIndex(lse:ListSelectionEvent):Int{
+            val list = lse.getSource() as JList<*>
+            val selected = list.selectedIndex
+            return selected
         }
-        fun gatherFilesWithImport(query:String):List<String>{
-            if (query.length>4){
-                val a1 = psiFiles
-                    .filter { psiFile -> (psiFile.importList?.importStatements?.map {stmt->stmt.qualifiedName }
-                        ?: emptyList())
-                        .contains(query)
-                    }
-                return a1.map { it.name }.toList().sorted()
+
+        fun importCallback(lse:ListSelectionEvent) {
+            ApplicationManager.getApplication().invokeAndWait {
+                val index = getSelectedIndex(lse)
+                if (!lse.valueIsAdjusting) {
+                    val impName = importJL.model.getElementAt(index)
+                    fileJL.selectedIndex=-1
+                    fileJL.setListData(
+                        importToFileMap
+                            .getOrDefault(impName, emptyList<PsiJavaFile>())
+                            .map { PsiFileExtender(it) }
+                            .toTypedArray()
+                    )
+                }
             }
-            return emptyList()
+        }
+        fun fileCallback(lse:ListSelectionEvent){
+            ApplicationManager.getApplication().invokeLater {
+                val index = getSelectedIndex(lse)
+                if (!lse.valueIsAdjusting) {
+                    val newF:PsiFileExtender = fileJL.model.getElementAt(index)
+                    newF.navigate()
+                }
+            }
         }
         fun refreshImportStatements(){
             ApplicationManager.getApplication().invokeAndWait {
-                psiFiles = getProjectLevelImports()
-                imports = gatherUniqueImports()
-
-                selectedImport=""
+                importToFileMap = getImportsAsMap()
+                importJL.selectedIndex=-1
                 importingFiles= emptyList()
                 selectedFileName=""
             }
         }
-        fun remove(int:Int){
-            try {
-                mainPanel.remove(int)
-            } catch (e:Exception) {
-                logger.warn("REMOVE")
+        fun createImportSearch() : JBScrollPane {
+            importJL.setEmptyText("loading")
+            importJL.setListData(importToFileMap.keys.sorted().toTypedArray())
+            importJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
+            importJL.addListSelectionListener {
+                importCallback(it)
             }
-        }
-        fun createImportSearch(loading:String) : JBScrollPane {
-            val jbl = JBList(imports)
-            jbl.setEmptyText(loading)
-            jbl.selectionMode=ListSelectionModel.SINGLE_SELECTION
-            jbl.addListSelectionListener {
-                selectedImport = jbl.selectedValue
-                remove(2)
-                ApplicationManager.getApplication().invokeAndWait {
-                    importingFiles = gatherFilesWithImport(selectedImport)
-
-                    val fileSearch = createFileSearch(
-                        "select an import",
-                    )
-                    mainPanel.add(fileSearch, BorderLayout.CENTER)
-                    mainPanel.repaint()
-                }
-            }
-
-            val lss = ListSpeedSearch(jbl)
+            val lss = ListSpeedSearch(importJL)
             val jbsp = JBScrollPane(lss.component)
             return jbsp
         }
-        fun createFileSearch(loading:String) : JBScrollPane {
-            val jbl = JBList(importingFiles)
-            jbl.setEmptyText(loading)
-            jbl.selectionMode=ListSelectionModel.SINGLE_SELECTION
-            jbl.addListSelectionListener {
-                ApplicationManager.getApplication().invokeAndWait {
-                    val newF = jbl.selectedValue
-                    psiFiles.find { it.name==newF }?.navigate(true)
-                }
+        fun createFileSearch() : JBScrollPane {
+            val fl = importingFiles.map { PsiFileExtender(it) }.toTypedArray()
+            fileJL.setEmptyText("select an import")
+            fileJL.setListData(fl)
+            fileJL.selectionMode=ListSelectionModel.SINGLE_SELECTION
+            fileJL.addListSelectionListener {
+                fileCallback(it)
             }
-            val lss = ListSpeedSearch(jbl)
+            val lss = ListSpeedSearch(fileJL)
             val jbsp = JBScrollPane(lss.component)
             return jbsp
         }
         fun createControlPanel():JPanel {
             val jp = JPanel()
-
             val refreshFilesButton = JButton("Refresh Imports")
+            refreshFilesButton.isEnabled=false
             refreshFilesButton.addActionListener {
                 refreshImportStatements()
                 refreshFilesButton.isEnabled=false
             }
             jp.add(refreshFilesButton, BorderLayout.PAGE_END)
-
-            project.messageBus.connect().subscribe<BulkFileListener>(
-                VirtualFileManager.VFS_CHANGES,
-                object : BulkFileListener {
-                    override fun after(events: MutableList<out VFileEvent>) {
-                        refreshFilesButton.isEnabled=true
-                    }
-                })
-
             return jp
         }
     }
