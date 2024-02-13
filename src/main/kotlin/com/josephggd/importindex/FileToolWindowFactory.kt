@@ -81,7 +81,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         fun createFileView():JBScrollPane{
             val scheme = EditorColorsManager.getInstance().schemeForCurrentUITheme;
             stepThreeFileView.background=scheme.defaultBackground
-            stepThreeFileView.setPreferredWidth(900)
+            stepThreeFileView.setPreferredWidth(600)
             stepThreeFileView.setOneLineMode(false)
             stepThreeFileView.fileType=JavaFileType.INSTANCE
             return JBScrollPane(stepThreeFileView.component)
