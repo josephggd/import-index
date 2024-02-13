@@ -5,3 +5,5 @@ f
 6src/main/kotlin/com/josephggd/importindex/FileLogic.kt,c\7\c769fb5a2ecf936aeaaa07e4e21f242a7acbbe06
 l
 <src/main/kotlin/com/josephggd/importindex/PsiFileExtender.kt,f\1\f100476e24fd8019c3a88d8bfea47f4a97972333
+@
+build.gradle.kts,d\b\dbcff70658daf80b53ce624f6adcaa529df5ed8d

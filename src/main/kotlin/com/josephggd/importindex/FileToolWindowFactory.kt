@@ -1,8 +1,6 @@
 package com.josephggd.importindex
 
-import com.intellij.icons.AllIcons
 import com.intellij.ide.highlighter.JavaFileType
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.project.DumbAware
@@ -15,20 +13,19 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiJavaFile
-import com.intellij.ui.AnimatedIcon
-import com.intellij.ui.EditorTextField
 import com.intellij.ui.HyperlinkLabel
+import com.intellij.ui.LanguageTextField
 import com.intellij.ui.ListSpeedSearch
-import com.intellij.ui.components.*
-import com.intellij.ui.components.labels.LinkLabel
+import com.intellij.ui.components.DialogPanel
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
-import com.intellij.util.ui.JBEmptyBorder
-import com.intellij.util.ui.JBImageIcon
-import com.intellij.util.ui.UIUtil
-import com.jetbrains.rd.swing.mouseClicked
 import java.awt.BorderLayout
-import javax.swing.*
-import javax.swing.Action.LARGE_ICON_KEY
+import javax.swing.BorderFactory
+import javax.swing.JList
+import javax.swing.JPanel
+import javax.swing.ListSelectionModel
 import javax.swing.event.ListSelectionEvent
 
 
@@ -44,7 +41,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         val stepOneSearchSelect = JBList(emptyList<String>())
         val stepTwoSearchSelect = JBList(emptyList<PsiFileExtender>())
         val stepTwoFileLink = HyperlinkLabel("FILE")
-        val stepThreeFileView = EditorTextField()
+        val stepThreeFileView = LanguageTextField()
         var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
         var importingFiles = emptyList<PsiJavaFile>()
         var selectedFileName:String?="no file selected"
