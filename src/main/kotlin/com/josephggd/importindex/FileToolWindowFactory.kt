@@ -1,8 +1,10 @@
 package com.josephggd.importindex
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.highlighter.JavaFileType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
@@ -11,8 +13,10 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiJavaFile
 import com.intellij.ui.AnimatedIcon
+import com.intellij.ui.EditorTextField
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.components.*
@@ -40,6 +44,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         val stepOneSearchSelect = JBList(emptyList<String>())
         val stepTwoSearchSelect = JBList(emptyList<PsiFileExtender>())
         val stepTwoFileLink = HyperlinkLabel("FILE")
+        val stepThreeFileView = EditorTextField()
         var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
         var importingFiles = emptyList<PsiJavaFile>()
         var selectedFileName:String?="no file selected"
@@ -57,8 +62,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 })
             mainPanel.add(createImportSearch(), BorderLayout.WEST)
             mainPanel.add(createFileSearch(), BorderLayout.CENTER)
-            val fileView = JLabel(selectedFileName)
-            mainPanel.add(fileView, BorderLayout.EAST)
+            mainPanel.add(createFileView(), BorderLayout.EAST)
         }
         fun getSelectedIndex(lse:ListSelectionEvent):Int{
             val list = lse.source as JList<*>
@@ -76,6 +80,17 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 }
             }
             return empty.joinToString (".")
+        }
+        fun createFileView():JBScrollPane{
+            val scheme = EditorColorsManager.getInstance().schemeForCurrentUITheme;
+            stepThreeFileView.background=scheme.defaultBackground
+            stepThreeFileView.setPreferredWidth(900)
+            stepThreeFileView.setOneLineMode(false)
+            stepThreeFileView.fileType=JavaFileType.INSTANCE
+            return JBScrollPane(stepThreeFileView.component)
+        }
+        fun updateFileView(psiFile:PsiJavaFile){
+            stepThreeFileView.setDocument(PsiDocumentManager.getInstance(project).getDocument(psiFile))
         }
 
         fun importCallback(lse:ListSelectionEvent) {
@@ -116,6 +131,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                     val newF:PsiFileExtender = stepTwoSearchSelect.model.getElementAt(index)
                     stepTwoFileLink.isEnabled=true
                     stepTwoFileLink.setHyperlinkText(newF.psiFile.name)
+                    updateFileView(newF.psiFile)
                     stepTwoFileLink.addHyperlinkListener {
                         newF.navigate()
                         newF.psiFile.containingDirectory.navigate(true)
