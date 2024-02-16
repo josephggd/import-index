@@ -7,3 +7,6 @@ l
 <src/main/kotlin/com/josephggd/importindex/PsiFileExtender.kt,f\1\f100476e24fd8019c3a88d8bfea47f4a97972333
 @
 build.gradle.kts,d\b\dbcff70658daf80b53ce624f6adcaa529df5ed8d
+:
+
+.gitignore,a\5\a5cc2925ca8258af241be7e5b0381edf30266302

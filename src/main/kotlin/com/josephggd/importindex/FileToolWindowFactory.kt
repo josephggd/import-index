@@ -160,8 +160,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                     logger.warn("IMPORT CALLBACK FAILED")
                 }
             }
-            val lss = ListSpeedSearch(stepOneSearchSelect)
-            val jbsp = JBScrollPane(lss.component)
+            val jbsp = JBScrollPane(stepOneSearchSelect)
             stepOneCheckBox.border=BorderFactory.createEmptyBorder(11,0,0,0)
             stepOneCheckBox.addChangeListener {
                 if (!stepOneCheckBox.isSelected) {
@@ -194,12 +193,11 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                     logger.warn("IMPORT CALLBACK FAILED")
                 }
             }
-            val lss = ListSpeedSearch(stepTwoSearchSelect)
             val dp = DialogPanel("Files Containing Import:")
             stepTwoFileLink.isEnabled=false
             stepTwoFileLink.setHyperlinkText("...")
             dp.add(stepTwoFileLink, BorderLayout.NORTH)
-            val jbsp = JBScrollPane(lss.component)
+            val jbsp = JBScrollPane(stepTwoSearchSelect)
             dp.add(jbsp)
             return dp
         }
