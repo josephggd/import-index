@@ -43,3 +43,4 @@ bin/
 .DS_Store
 *.pem
 *.crt
+pw.txt
