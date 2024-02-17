@@ -1,6 +1,7 @@
 package com.josephggd.importindex
 
 import com.intellij.ide.highlighter.JavaFileType
+import com.intellij.lang.java.JavaLanguage
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.project.DumbAware
@@ -15,7 +16,6 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiJavaFile
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.LanguageTextField
-import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.components.DialogPanel
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
@@ -41,7 +41,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
         val stepOneSearchSelect = JBList(emptyList<String>())
         val stepTwoSearchSelect = JBList(emptyList<PsiFileExtender>())
         val stepTwoFileLink = HyperlinkLabel("FILE")
-        val stepThreeFileView = LanguageTextField()
+        val stepThreeFileView = LanguageTextField(JavaLanguage.INSTANCE, project, "")
         var importToFileMap = emptyMap<String,List<PsiJavaFile>>()
         var importingFiles = emptyList<PsiJavaFile>()
         var selectedFileName:String?="no file selected"
