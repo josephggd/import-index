@@ -30,6 +30,12 @@ import javax.swing.event.ListSelectionEvent
 
 
 internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
+    private enum class Error(private val str:String) {
+        REFRESH_FAILED("REFRESH FAILED"),
+        IMPORT_CALLBACK_FAILED("IMPORT CALLBACK FAILED"),
+        FILE_CALLBACK_FAILED("FILE CALLBACK FAILED"),
+        BAD_PKG_NAME("BAD PKG NAME");
+    }
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val toolWindowContent = FileToolWindowContent(project)
         val content = ContentFactory.getInstance().createContent(toolWindowContent.mainPanel, "", false)
@@ -73,14 +79,14 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 try {
                     empty.add(list[i])
                 } catch (e:Exception) {
-                    logger.warn("BAD PKG NAME")
+                    logger.warn(Error.BAD_PKG_NAME.toString())
                 }
             }
             return empty.joinToString (".")
         }
         fun createFileView():JBScrollPane{
-            val scheme = EditorColorsManager.getInstance().schemeForCurrentUITheme;
-            stepThreeFileView.background=scheme.defaultBackground
+            val cm = EditorColorsManager.getInstance()
+            stepThreeFileView.background = cm.schemeForCurrentUITheme.defaultBackground
             stepThreeFileView.setPreferredWidth(600)
             stepThreeFileView.setOneLineMode(false)
             stepThreeFileView.fileType=JavaFileType.INSTANCE
@@ -118,7 +124,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                     }
                 }
             } catch (e:Exception) {
-                logger.warn("IMPORT CALLBACK FAILED")
+                logger.warn(Error.IMPORT_CALLBACK_FAILED.toString())
             }
         }
         fun fileCallback(lse:ListSelectionEvent){
@@ -135,7 +141,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                     }
                 }
             } catch (e:Exception) {
-                logger.warn("FILE CALLBACK FAILED")
+                logger.warn(Error.FILE_CALLBACK_FAILED.toString())
             }
         }
         fun refreshImportStatements(){
@@ -145,7 +151,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 importingFiles= emptyList()
                 selectedFileName=""
             } catch (e:Exception) {
-                logger.warn("REFRESH FAILED")
+                logger.warn(Error.REFRESH_FAILED.toString())
             }
         }
         fun createImportSearch() : DialogPanel {
@@ -157,7 +163,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 try {
                     importCallback(it)
                 } catch (e:Exception) {
-                    logger.warn("IMPORT CALLBACK FAILED")
+                    logger.warn(Error.IMPORT_CALLBACK_FAILED.toString())
                 }
             }
             val jbsp = JBScrollPane(stepOneSearchSelect)
@@ -190,7 +196,7 @@ internal class FileToolWindowFactory : ToolWindowFactory, DumbAware {
                 try {
                     fileCallback(it)
                 } catch (e:Exception) {
-                    logger.warn("IMPORT CALLBACK FAILED")
+                    logger.warn(Error.IMPORT_CALLBACK_FAILED.toString())
                 }
             }
             val dp = DialogPanel("Files Containing Import:")
